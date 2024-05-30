@@ -8,7 +8,7 @@ class BlockTable:
     """A class to manage blocks for a specific sequence.
 
     The BlockTable maps a sequence of tokens to a list of blocks, where each
-    block represents a contiguous memory allocation for a portion of the 
+    block represents a contiguous memory allocation for a portion of the
     sequence. The blocks are managed by a DeviceAwareBlockAllocator, which is
     responsible for allocating and freeing memory for the blocks.
 
@@ -128,11 +128,16 @@ class BlockTable:
             assert num_computed_slots is not None
             end_block_idx = (num_computed_slots //
                              self._block_size) - self._max_block_sliding_window
-            for idx in range(0, end_block_idx):
+            print("num_computed_slots", num_computed_slots)
+            for idx in range(1, end_block_idx + 1):
                 b = self._blocks[idx]
                 if b is not null_block:
                     self._allocator.free(b)
                     self._blocks[idx] = null_block
+            print("Drop block, Non-null block_size: %d" % len([
+                b for b in self._blocks if b is not null_block
+            ]))
+            # self._blocks = [b for b in self._blocks if b is not null_block]
 
         # Ensure there are enough empty slots for the new tokens plus
         # lookahead slots

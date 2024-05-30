@@ -74,6 +74,7 @@ class EngineArgs:
     num_gpu_blocks_override: Optional[int] = None
     num_lookahead_slots: int = 0
     model_loader_extra_config: Optional[dict] = None
+    use_attention_sinks: bool = False
 
     # Related to Vision-language models such as llava
     image_input_type: Optional[str] = None
@@ -95,6 +96,10 @@ class EngineArgs:
     def __post_init__(self):
         if self.tokenizer is None:
             self.tokenizer = self.model
+        if self.use_attention_sinks and self.speculative_model:
+            raise NotImplementedError('Attention sinks are not supported '
+                                      'with speculative decoding currently.')
+
 
     @staticmethod
     def add_cli_args(
@@ -383,6 +388,11 @@ class EngineArgs:
                             'This should be a JSON string that will be '
                             'parsed into a dictionary. Ignored if '
                             'tokenizer_pool_size is 0.')
+        parser.add_argument('--use-attention_sinks',
+                            action='store_true',
+                            help=('If True, allow the model to use '
+                            'attention sinks and exceed its context '
+                            'length during decoding.'))
         # LoRA related configs
         parser.add_argument('--enable-lora',
                             action='store_true',
@@ -564,13 +574,18 @@ class EngineArgs:
             self.quantization_param_path, self.enforce_eager,
             self.max_context_len_to_capture, self.max_seq_len_to_capture,
             self.max_logprobs, self.disable_sliding_window,
-            self.skip_tokenizer_init, self.served_model_name)
+            self.skip_tokenizer_init,
+            self.use_attention_sinks,
+            self.served_model_name)
+
         cache_config = CacheConfig(self.block_size,
                                    self.gpu_memory_utilization,
                                    self.swap_space, self.kv_cache_dtype,
                                    self.num_gpu_blocks_override,
                                    model_config.get_sliding_window(),
+                                   self.use_attention_sinks,
                                    self.enable_prefix_caching)
+
         parallel_config = ParallelConfig(
             self.pipeline_parallel_size,
             self.tensor_parallel_size,
@@ -605,6 +620,7 @@ class EngineArgs:
             self.max_num_seqs,
             model_config.max_model_len,
             self.use_v2_block_manager,
+            self.use_attention_sinks,
             num_lookahead_slots=(self.num_lookahead_slots
                                  if speculative_config is None else
                                  speculative_config.num_lookahead_slots),

@@ -391,7 +391,10 @@ class ModelRunner:
                 query_len = sliding_seq_len - sliding_context_len
                 query_lens.append(query_len)
                 input_tokens.extend(tokens)
-                input_positions.extend(list(range(context_len, seq_len)))
+                print("sliding", sliding_context_len, sliding_seq_len)
+                print("None", context_len, seq_len)
+                # input_positions.extend(list(range(context_len, seq_len)))
+                input_positions.extend(list(range(sliding_context_len, sliding_seq_len)))
                 lora_id = seq_group_metadata.lora_int_id
 
                 if is_prompt:

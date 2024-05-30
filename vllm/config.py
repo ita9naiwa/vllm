@@ -28,8 +28,8 @@ class ModelConfig:
 
     Args:
         model: Name or path of the huggingface model to use.
-            It is also used as the content for `model_name` tag in metrics 
-            output when `served_model_name` is not specified. 
+            It is also used as the content for `model_name` tag in metrics
+            output when `served_model_name` is not specified.
         tokenizer: Name or path of the huggingface tokenizer to use.
         tokenizer_mode: Tokenizer mode. "auto" will use the fast tokenizer if
             available, and "slow" will always use the slow tokenizer.
@@ -76,9 +76,13 @@ class ModelConfig:
         skip_tokenizer_init: If true, skip initialization of tokenizer and
             detokenizer.
         served_model_name: The model name used in metrics tag `model_name`,
-            matches the model name exposed via the APIs. If multiple model 
-            names provided, the first name will be used. If not specified, 
+            matches the model name exposed via the APIs. If multiple model
+            names provided, the first name will be used. If not specified,
             the model name will be the same as `model`.
+        use_attention_sinks: If True, allow the model to use attention sinks
+            and exceed its context length during decoding.
+        block_size:
+
     """
 
     def __init__(
@@ -102,6 +106,7 @@ class ModelConfig:
         max_logprobs: int = 5,
         disable_sliding_window: bool = False,
         skip_tokenizer_init: bool = False,
+        use_attention_sinks: bool = False,
         served_model_name: Optional[Union[str, List[str]]] = None,
     ) -> None:
         self.model = model
@@ -117,6 +122,7 @@ class ModelConfig:
         self.quantization_param_path = quantization_param_path
         self.enforce_eager = enforce_eager
         self.max_context_len_to_capture = max_context_len_to_capture
+        self.use_attention_sinks = use_attention_sinks
         if self.max_context_len_to_capture is not None:
             raise ValueError("`max_context_len_to_capture` is deprecated. "
                              "Use `max_seq_len_to_capture` instead.")
@@ -124,19 +130,25 @@ class ModelConfig:
                                        or max_context_len_to_capture)
         self.max_logprobs = max_logprobs
         self.disable_sliding_window = disable_sliding_window
+        if self.use_attention_sinks:
+            self.disable_sliding_window = False
+
         self.skip_tokenizer_init = skip_tokenizer_init
 
         self.hf_config = get_config(self.model, trust_remote_code, revision,
                                     code_revision, rope_scaling)
         self.hf_text_config = get_hf_text_config(self.hf_config)
         self.dtype = _get_and_verify_dtype(self.hf_text_config, dtype)
+
         self.max_model_len = _get_and_verify_max_len(
+            use_attention_sinks=self.use_attention_sinks,
             hf_config=self.hf_text_config,
             max_model_len=max_model_len,
             disable_sliding_window=self.disable_sliding_window,
-            sliding_window_len=self.get_hf_config_sliding_window())
+            sliding_window_len=max_model_len - 2 * 16) # Note(ita9niwa): 16 -> block_size
         self.served_model_name = get_served_model_name(model,
                                                        served_model_name)
+
         if not self.skip_tokenizer_init:
             self._verify_tokenizer_mode()
         self._verify_embedding_mode()
@@ -247,6 +259,9 @@ class ModelConfig:
         # If user disables sliding window, return None.
         if self.disable_sliding_window:
             return None
+        # If attention_sinks enabled, return max_model_len - 2 * block_size
+        if self.use_attention_sinks:
+            return self.max_model_len - 2 * 16 # Note(ita9niwa): 16 -> block_size
         # Otherwise get the value from the hf config.
         return self.get_hf_config_sliding_window()
 
@@ -343,6 +358,7 @@ class CacheConfig:
         cache_dtype: str,
         num_gpu_blocks_override: Optional[int] = None,
         sliding_window: Optional[int] = None,
+        attention_sink: bool = False,
         enable_prefix_caching: bool = False,
     ) -> None:
         self.block_size = block_size
@@ -350,6 +366,7 @@ class CacheConfig:
         self.swap_space_bytes = swap_space * _GB
         self.num_gpu_blocks_override = num_gpu_blocks_override
         self.cache_dtype = cache_dtype
+        self.attention_sink = attention_sink
         self.sliding_window = sliding_window
         self.enable_prefix_caching = enable_prefix_caching
         self._verify_args()
@@ -640,6 +657,7 @@ class SchedulerConfig:
         max_num_seqs: int,
         max_model_len: int,
         use_v2_block_manager: bool = False,
+        use_attention_sinks: bool = False,
         num_lookahead_slots: int = 0,
         delay_factor: float = 0.0,
         enable_chunked_prefill: bool = False,
@@ -666,6 +684,7 @@ class SchedulerConfig:
         self.max_num_seqs = max_num_seqs
         self.max_model_len = max_model_len
         self.use_v2_block_manager = use_v2_block_manager
+        self.use_attention_sinks = use_attention_sinks
         self.num_lookahead_slots = num_lookahead_slots
         self.delay_factor = delay_factor
         self.chunked_prefill_enabled = enable_chunked_prefill
@@ -1146,6 +1165,7 @@ def _get_and_verify_dtype(
 
 
 def _get_and_verify_max_len(
+    use_attention_sinks: bool,
     hf_config: PretrainedConfig,
     max_model_len: Optional[int],
     disable_sliding_window: bool,
@@ -1248,10 +1268,10 @@ def _get_and_verify_max_len(
 def get_served_model_name(model: str,
                           served_model_name: Optional[Union[str, List[str]]]):
     """
-    If the input is a non-empty list, the first model_name in 
-    `served_model_name` is taken. 
-    If the input is a non-empty string, it is used directly. 
-    For cases where the input is either an empty string or an 
+    If the input is a non-empty list, the first model_name in
+    `served_model_name` is taken.
+    If the input is a non-empty string, it is used directly.
+    For cases where the input is either an empty string or an
     empty list, the fallback is to use `self.model`.
     """
     if not served_model_name:

@@ -164,6 +164,7 @@ class LLMEngine:
             "skip_tokenizer_init=%s, tokenizer_mode=%s, revision=%s, "
             "rope_scaling=%r, tokenizer_revision=%s, "
             "trust_remote_code=%s, dtype=%s, max_seq_len=%d, "
+            "use_attention_sinks=%s, "
             "download_dir=%r, load_format=%s, tensor_parallel_size=%d, "
             "disable_custom_all_reduce=%s, quantization=%s, "
             "enforce_eager=%s, kv_cache_dtype=%s, "
@@ -181,6 +182,7 @@ class LLMEngine:
             model_config.trust_remote_code,
             model_config.dtype,
             model_config.max_model_len,
+            model_config.use_attention_sinks,
             load_config.download_dir,
             load_config.load_format,
             parallel_config.tensor_parallel_size,
@@ -298,6 +300,7 @@ class LLMEngine:
                 self.get_tokenizer_for_seq,
                 stop_checker=StopChecker(
                     self.scheduler_config.max_model_len,
+                    model_config.use_attention_sinks,
                     self.get_tokenizer_for_seq,
                 ),
             ))
@@ -632,6 +635,10 @@ class LLMEngine:
     def get_model_config(self) -> ModelConfig:
         """Gets the model configuration."""
         return self.model_config
+
+    def get_cache_config(self) -> CacheConfig:
+        """Gets the cache configration."""
+        return self.cache_config
 
     def get_decoding_config(self) -> DecodingConfig:
         """Gets the decoding configuration."""

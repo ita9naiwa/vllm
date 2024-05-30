@@ -15,14 +15,19 @@ class StopChecker:
     """
 
     def __init__(self, max_model_len: int,
+                 use_attention_sinks: bool,
                  get_tokenizer_for_seq: Callable[[Sequence],
                                                  PreTrainedTokenizer]):
         # Do not use it directly, but use `self._get_max_model_len`.
         self._max_model_len = max_model_len
+        self.use_attention_sinks = use_attention_sinks
         self.get_tokenizer_for_seq = get_tokenizer_for_seq
 
     def _get_max_model_len(self, lora_req: Optional[LoRARequest]):
-        if lora_req and lora_req.long_lora_max_len:
+        if self.use_attention_sinks:
+            # If attention sinks are used, the model length is not capped.
+            return float('inf')
+        elif lora_req and lora_req.long_lora_max_len:
             return lora_req.long_lora_max_len
         else:
             return self._max_model_len
