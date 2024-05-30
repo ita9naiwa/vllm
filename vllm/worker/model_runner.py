@@ -98,6 +98,7 @@ class ModelRunner:
 
         self.kv_cache_dtype = kv_cache_dtype
         self.sliding_window = model_config.get_sliding_window()
+        self.use_attention_sinks = model_config.use_attention_sinks
         self.block_size = cache_config.block_size
         self.max_seq_len_to_capture = self.model_config.max_seq_len_to_capture
         self.graph_runners: Dict[int, CUDAGraphRunner] = {}
@@ -385,16 +386,15 @@ class ModelRunner:
                     # Prefill without chunked prefill or memory profiling.
                     block_table = []
                 block_tables.append(block_table)
-
                 seq_lens.append(sliding_seq_len)
                 context_lens.append(sliding_context_len)
                 query_len = sliding_seq_len - sliding_context_len
                 query_lens.append(query_len)
                 input_tokens.extend(tokens)
-                print("sliding", sliding_context_len, sliding_seq_len)
-                print("None", context_len, seq_len)
-                # input_positions.extend(list(range(context_len, seq_len)))
-                input_positions.extend(list(range(sliding_context_len, sliding_seq_len)))
+                if self.use_attention_sinks:
+                    input_positions.extend(list(range(sliding_context_len, sliding_seq_len)))
+                else:
+                    input_positions.extend(list(range(context_len, seq_len)))
                 lora_id = seq_group_metadata.lora_int_id
 
                 if is_prompt:
@@ -453,7 +453,8 @@ class ModelRunner:
                     # to save memory.
                     start_idx = max(0, query_len - self.sliding_window)
 
-                for i in range(context_len, seq_len):
+                # for i in range(context_len, seq_len):
+                for i in range(sliding_context_len, sliding_seq_len):
                     if i < start_idx:
                         slot_mapping.append(_PAD_SLOT_ID)
                         continue
@@ -619,7 +620,8 @@ class ModelRunner:
             )
         else:
             lora_mapping = None
-
+        print("input_tokens_tensor", input_tokens_tensor)
+        print("input_positions_tensor", input_positions_tensor)
         return ModelInput(
             input_tokens=input_tokens_tensor,
             input_positions=input_positions_tensor,

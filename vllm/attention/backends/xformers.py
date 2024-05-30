@@ -180,11 +180,11 @@ class XFormersMetadata(AttentionMetadata, PagedAttentionMetadata):
 class XFormersImpl(AttentionImpl[XFormersMetadata]):
     """
     If the input tensors contain prompt tokens, the layout is as follows:
-    |<--------------- num_prefill_tokens ----------------->|	
+    |<--------------- num_prefill_tokens ----------------->|
     |<--prefill_0-->|<--prefill_1-->|...|<--prefill_N-1--->|
 
-    Otherwise, the layout is as follows:	
-    |<----------------- num_decode_tokens ------------------>|	
+    Otherwise, the layout is as follows:
+    |<----------------- num_decode_tokens ------------------>|
     |<--decode_0-->|..........|<--decode_M-1-->|<--padding-->|
 
     Generation tokens can contain padding when cuda-graph is used.
@@ -318,7 +318,6 @@ class XFormersImpl(AttentionImpl[XFormersMetadata]):
                 )
                 assert output[:num_prefill_tokens].shape == out.shape
                 output[:num_prefill_tokens] = out
-
         if decode_meta := attn_metadata.decode_metadata:
             output[num_prefill_tokens:] = PagedAttention.forward_decode(
                 decode_query,

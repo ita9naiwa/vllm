@@ -145,7 +145,7 @@ class ModelConfig:
             hf_config=self.hf_text_config,
             max_model_len=max_model_len,
             disable_sliding_window=self.disable_sliding_window,
-            sliding_window_len=max_model_len - 2 * 16) # Note(ita9niwa): 16 -> block_size
+            sliding_window_len=max_model_len - 16) # Note(ita9niwa): 16 -> block_size
         self.served_model_name = get_served_model_name(model,
                                                        served_model_name)
 
@@ -261,7 +261,7 @@ class ModelConfig:
             return None
         # If attention_sinks enabled, return max_model_len - 2 * block_size
         if self.use_attention_sinks:
-            return self.max_model_len - 2 * 16 # Note(ita9niwa): 16 -> block_size
+            return self.max_model_len - 16 # Note(ita9niwa): 16 -> block_size
         # Otherwise get the value from the hf config.
         return self.get_hf_config_sliding_window()
 

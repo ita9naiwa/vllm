@@ -151,11 +151,9 @@ class NaiveBlockAllocator(BlockAllocator):
 
     def _free_block_id(self, block_id: BlockId) -> None:
         refcount = self._refcounter.decr(block_id)
-        print("155: num_free_gpu_blocks", len(self._free_block_indices))
         if refcount == 0:
             print("freed", block_id)
             self._free_block_indices.add(block_id)
-        print("156: num_free_gpu_blocks", len(self._free_block_indices))
 
     @property
     def refcounter(self):

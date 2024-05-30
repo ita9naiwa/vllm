@@ -128,16 +128,15 @@ class BlockTable:
             assert num_computed_slots is not None
             end_block_idx = (num_computed_slots //
                              self._block_size) - self._max_block_sliding_window
-            print("num_computed_slots", num_computed_slots)
             for idx in range(1, end_block_idx + 1):
                 b = self._blocks[idx]
                 if b is not null_block:
                     self._allocator.free(b)
                     self._blocks[idx] = null_block
-            print("Drop block, Non-null block_size: %d" % len([
-                b for b in self._blocks if b is not null_block
-            ]))
-            # self._blocks = [b for b in self._blocks if b is not null_block]
+            for idx, b in enumerate(self._blocks):
+                if b is not null_block:
+                    print("Block %d: %d" % (b._block_id, len(b.token_ids)),
+                          b.token_ids)
 
         # Ensure there are enough empty slots for the new tokens plus
         # lookahead slots
@@ -233,7 +232,9 @@ class BlockTable:
                 BlockTable.
         """
         assert self._is_allocated
-        return [block.block_id for block in self._blocks]
+        null_block = self._allocator.allocate_or_get_null_block()
+        return [block.block_id for block in self._blocks
+                if block is not null_block]
 
     def get_unseen_token_ids(self, sequence_token_ids: List[int]) -> List[int]:
         """Get the number of "unseen" tokens in the sequence.
